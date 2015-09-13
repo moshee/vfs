@@ -135,7 +135,7 @@ func (se *stringEncoder) Write(p []byte) (int, error) {
 		case '"':
 			_, err = se.w.WriteString(`\"`)
 		default:
-			if 0x20 <= b && b < 0x79 {
+			if 0x20 <= b && b < 0x7F {
 				err = se.w.WriteByte(b)
 			} else {
 				_, err = fmt.Fprintf(se.w, `\x%02x`, b)
