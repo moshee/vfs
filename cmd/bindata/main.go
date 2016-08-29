@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -31,6 +32,7 @@ import _ "%s"
 	dataFilePrefix = `package %s
 
 import (
+	"path/filepath"
 	"time"
 
 	"ktkr.us/pkg/vfs/bindata"
@@ -56,26 +58,25 @@ func main() {
 	os.MkdirAll(pkgName, 0755)
 
 	for _, dir := range flag.Args() {
-		func() {
-			p := filepath.Join(pkgName, dir+".go")
-			f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-			if err != nil {
-				log.Fatal(err)
+		pc := []string{pkgName, dir + ".go"}
+		p := filepath.Join(pc...)
+		f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Fprintf(f, dataFilePrefix, pkgName)
+		err = filepath.Walk(dir, func(p string, fi os.FileInfo, err error) error {
+			if fi.IsDir() || matchList(filepath.Base(p), skipPatterns) {
+				return nil
 			}
-			defer f.Close()
-			fmt.Fprintf(f, dataFilePrefix, pkgName)
-			err = filepath.Walk(dir, func(p string, fi os.FileInfo, err error) error {
-				if fi.IsDir() || matchList(filepath.Base(p), skipPatterns) {
-					return nil
-				}
-				return addFile(f, p)
-			})
-			if err != nil {
-				log.Fatal(err)
-			}
+			return addFile(f, p, pc)
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
 
-			fmt.Fprintln(f, dataFileSuffix)
-		}()
+		fmt.Fprintln(f, dataFileSuffix)
+		f.Close()
 	}
 
 	// get the name of the current package
@@ -98,7 +99,7 @@ func main() {
 	f.Close()
 }
 
-func addFile(w io.Writer, p string) error {
+func addFile(w io.Writer, p string, pc []string) error {
 	f, err := os.Open(p)
 	if err != nil {
 		return err
@@ -110,7 +111,12 @@ func addFile(w io.Writer, p string) error {
 		return err
 	}
 
-	fmt.Fprintf(w, "\tbindata.RegisterFile(%q, time.Unix(%d, 0), []byte(\"", p, fi.ModTime().Unix())
+	for i, s := range pc {
+		pc[i] = fmt.Sprintf("%q", s)
+	}
+	joinExpr := fmt.Sprintf(`filepath.Join(%s)`, strings.Join(pc, ", "))
+
+	fmt.Fprintf(w, "\tbindata.RegisterFile(%s, time.Unix(%d, 0), []byte(\"", joinExpr, fi.ModTime().Unix())
 	se := &stringEncoder{bufio.NewWriter(w)}
 	_, err = io.Copy(se, f)
 	fmt.Fprint(w, "\"))\n")
