@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -69,7 +70,7 @@ func main() {
 			if fi.IsDir() || matchList(filepath.Base(p), skipPatterns) {
 				return nil
 			}
-			return addFile(f, p, pc)
+			return addFile(f, p)
 		})
 		if err != nil {
 			log.Fatal(err)
@@ -99,7 +100,7 @@ func main() {
 	f.Close()
 }
 
-func addFile(w io.Writer, p string, pc []string) error {
+func addFile(w io.Writer, p string) error {
 	f, err := os.Open(p)
 	if err != nil {
 		return err
@@ -111,8 +112,9 @@ func addFile(w io.Writer, p string, pc []string) error {
 		return err
 	}
 
+	pc := strings.Split(filepath.Clean(p), string([]rune{filepath.Separator}))
 	for i, s := range pc {
-		pc[i] = fmt.Sprintf("%q", s)
+		pc[i] = strconv.Quote(s)
 	}
 	joinExpr := fmt.Sprintf(`filepath.Join(%s)`, strings.Join(pc, ", "))
 
